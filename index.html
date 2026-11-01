@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#0a1414">
 <title>Ночной страж</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Подключаем Adsgram SDK -->
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -82,7 +84,8 @@ button:disabled{opacity:.38;pointer-events:none}
       <button id="nv" aria-label="Взрыв">💥</button>
     </div>
   </div>
-  <div id="ad">Рекламный баннер · Adsgram / Telegram Ads</div>
+  <!-- Контейнер для баннера Adsgram -->
+  <div id="ad-container" style="display:flex; justify-content:center; width:100%;"></div>
 </div>
 <script>
 /* ── Telegram Mini App ── */
@@ -93,11 +96,9 @@ if (tg) {
   try {
     tg.setHeaderColor('#070f0f');
     tg.setBackgroundColor('#070f0f');
-    // Главный фикс: отключаем свайп вниз (сворачивание Mini App)
     if (typeof tg.disableVerticalSwipes === 'function') {
       tg.disableVerticalSwipes();
     }
-    // Повторно фиксируем при изменении viewport
     if (tg.onEvent) {
       tg.onEvent('viewportChanged', function() {
         if (typeof tg.disableVerticalSwipes === 'function') tg.disableVerticalSwipes();
@@ -107,7 +108,6 @@ if (tg) {
   } catch(e){}
 }
 
-// Блокируем жесты, которые Telegram использует для сворачивания
 document.addEventListener('touchmove', function(e) {
   if (e.touches.length === 1) e.preventDefault();
 }, { passive: false });
@@ -124,9 +124,40 @@ function haptic(type) {
   } catch(e){}
 }
 
-/* ── Ads stubs (замените на Adsgram / Telegram Ads) ── */
-function showRewardedAd(done){ setTimeout(done, 300); }
-function showInterstitial(){}
+/* ── Adsgram Integration (UnitID: 57248) ── */
+const adController = window.Adsgram ? window.Adsgram.init({ blockId: "57248" }) : null;
+
+function showRewardedAd(done) {
+  if (adController) {
+    adController.show().then((result) => {
+      // Пользователь успешно досмотрел рекламу до конца
+      done();
+    }).catch((result) => {
+      // Ошибка показа или пользователь закрыл раньше времени
+      console.log('Ad error/closed:', result);
+      // Можно выдать предупреждение, если нужно
+    });
+  } else {
+    // Резервный вариант на случай запуска вне Telegram / без сети
+    console.warn('Adsgram SDK not loaded, skipping ad.');
+    done();
+  }
+}
+
+function showInterstitial() {
+  // Интерстициальная реклама вызывается через тот же контроллер
+  if (adController) {
+    adController.show().catch((e) => console.log('Interstitial error:', e));
+  }
+}
+
+// Автоматический показ баннера снизу (если поддерживается вашим блоком)
+try {
+  if (window.Adsgram) {
+    const bannerController = window.Adsgram.init({ blockId: "57248", mode: "banner", container: "ad-container" });
+    bannerController.show().catch(e => console.log('Banner load error:', e));
+  }
+} catch(e) {}
 
 /* ── Save ── */
 const def = {coins:0,hp:0,dmg:0,best:0,bw:0,tk:0,games:0,hero:0,own:1,day:'',streak:0,mute:0,tut:0,bestCombo:0};
@@ -533,7 +564,7 @@ function die(){
   S.best = Math.max(S.best, Math.floor(G.t));
   S.bw = Math.max(S.bw||0, G.wv);
   S.tk = (S.tk||0) + G.kills;
-  S.bestCombo = Math.max(S.bestCombo||0, G.maxCombo);
+  S.bestCombo = Math.max(S.bestCombo||0, G.bestCombo);
   S.games++;
   save();
   draw();
@@ -1249,3 +1280,4 @@ menu();
 </script>
 </body>
 </html>
+  
